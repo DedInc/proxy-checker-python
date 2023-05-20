@@ -22,7 +22,7 @@ pip install proxy-checker-requests
 ## Usage
 
 ```python3
-from proxy_checker import ProxyChecker
+from proxy_checker_requests import ProxyChecker
 
 checker = ProxyChecker()
 checker.check_proxy('<ip>:<port>')
