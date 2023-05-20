@@ -1,9 +1,13 @@
-import pycurl
-from io import BytesIO
-import re
+import requests
 import random
+import re
 import json
+from requests.adapters import HTTPAdapter
+from requests.packages.urllib3.util.retry import Retry
+import warnings
+from urllib3.exceptions import InsecureRequestWarning
 
+warnings.simplefilter("ignore", InsecureRequestWarning)
 
 class ProxyChecker:
     def __init__(self):
@@ -22,42 +26,38 @@ class ProxyChecker:
         return r['response']
 
     def send_query(self, proxy=False, url=None, user=None, password=None):
-        response = BytesIO()
-        c = pycurl.Curl()
+        session = requests.Session()
+        retry = Retry(total=3, backoff_factor=0.3, status_forcelist=[500, 502, 503, 504])
+        adapter = HTTPAdapter(max_retries=retry)
+        session.mount('http://', adapter)
+        session.mount('https://', adapter)
 
-        c.setopt(c.URL, url or random.choice(self.proxy_judges))
-        c.setopt(c.WRITEDATA, response)
-        c.setopt(c.TIMEOUT, 5)
-
-        if user is not None and password is not None:
-            c.setopt(c.PROXYUSERPWD, f"{user}:{password}")            
-
-        c.setopt(c.SSL_VERIFYHOST, 0)
-        c.setopt(c.SSL_VERIFYPEER, 0)
-
+        proxies = None
         if proxy:
-            c.setopt(c.PROXY, proxy)
+            proxies = {
+                'http': proxy,
+                'https': proxy
+            }
 
-        # Perform request
+        auth = None
+        if user is not None and password is not None:
+            auth = (user, password)
+
         try:
-            c.perform()
-        except Exception as e:
-            # print(e)
+            response = session.get(
+                url or random.choice(self.proxy_judges),
+                proxies=proxies,
+                auth=auth,
+                timeout=5,
+                verify=False
+            )
+            response.raise_for_status()
+        except requests.exceptions.RequestException as e:
             return False
-
-        # Return False if the status is not 200
-        if c.getinfo(c.HTTP_CODE) != 200:
-            return False
-
-        # Calculate the request timeout in milliseconds
-        timeout = round(c.getinfo(c.CONNECT_TIME) * 1000)
-
-        # Decode the response content
-        response = response.getvalue().decode('iso-8859-1')
 
         return {
-            'timeout': timeout,
-            'response': response
+            'timeout': int(response.elapsed.total_seconds() * 1000),
+            'response': response.text
         }
 
     def parse_anonymity(self, r):
@@ -93,34 +93,25 @@ class ProxyChecker:
         protocols = {}
         timeout = 0
 
-        # Test the proxy for each protocol
-        for protocol in ['http', 'socks4', 'socks5']:
-            r = self.send_query(proxy=protocol + '://' + proxy, user=user, password=password)
+        proxy_url = 'http://' + proxy
 
-            # Check if the request failed
-            if not r:
-                continue
+        r = self.send_query(proxy=proxy_url, user=user, password=password)
 
-            protocols[protocol] = r
-            timeout += r['timeout']
-
-        # Check if the proxy failed all tests
-        if (len(protocols) == 0):
+        if not r:
             return False
 
-        r = protocols[random.choice(list(protocols.keys()))]['response']
+        protocols['http'] = r
+        timeout += r['timeout']
 
-        # Get country
+        r = protocols['http']['response']
+
         if check_country:
             country = self.get_country(proxy.split(':')[0])
 
-        # Check anonymity
         anonymity = self.parse_anonymity(r)
 
-        # Check timeout
         timeout = timeout // len(protocols)
 
-        # Check remote address
         if check_address:
             remote_regex = r'REMOTE_ADDR = (\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})'
             remote_addr = re.search(remote_regex, r)
