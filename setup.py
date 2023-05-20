@@ -5,7 +5,7 @@ with open('README.md', 'r') as f:
 
 setuptools.setup(
     name='proxy_checker_requests',
-    version='0.6',
+    version='0.6.1',
     packages=['proxy_checker_requests'],
     install_requires=['requests'],
     author='ricerati',

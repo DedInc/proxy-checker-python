@@ -1,8 +1,8 @@
 # Proxy Checker (Python)
 
-[![Downloads](https://pepy.tech/badge/proxy-checker)](https://pepy.tech/project/proxy-checker)
+[![Downloads](https://pepy.tech/badge/proxy-checker-requests)](https://pepy.tech/project/proxy-checker-requests)
 
-A proxy checker in Python using PycURL, a Python interface to libcurl.
+A proxy checker in Python using Requests.
 
 ## Description
 
@@ -16,7 +16,7 @@ The proxy checker takes a proxy as input and uses it to send a request to a prox
 ## Installation
 
 ```console
-pip install proxy-checker
+pip install proxy-checker-requests
 ```
 
 ## Usage
@@ -51,9 +51,7 @@ checker.check_proxy('<ip>:<port>')
 ## Requirements
 
 - Python 3.\*
-- [PycURL](http://pycurl.io/) - A Python interface to libcurl \*
-
-###### \* If you have trouble installing PycURL on Windows, try to use Christoph Gohlke's collection of [Python Extension Package for Windows](https://www.lfd.uci.edu/~gohlke/pythonlibs/#pycurl).
+- [Requests](https://pypi.org/project/requests/) - A requests python module \*
 
 ## Contributing
 
