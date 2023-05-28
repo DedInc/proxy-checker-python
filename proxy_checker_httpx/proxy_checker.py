@@ -1,64 +1,74 @@
-import requests
+import httpx
 import random
 import re
 import json
-from requests.adapters import HTTPAdapter
-from requests.packages.urllib3.util.retry import Retry
 import warnings
+from httpx import Timeout
 from urllib3.exceptions import InsecureRequestWarning
+import asyncio
 
 warnings.simplefilter("ignore", InsecureRequestWarning)
 
 class ProxyChecker:
-    def __init__(self):
-        self.ip = self.get_ip()
+    def __init__(self):        
         self.proxy_judges = [
             'http://proxyjudge.us/azenv.php',
             'http://mojeip.net.pl/asdfa/azenv.php'
         ]
 
-    def get_ip(self):
-        r = self.send_query(url='https://api.ipify.org/')
+    async def initialize(self):
+        self.ip = await self.get_ip()
+
+    async def get_ip(self):
+        r = await self.send_query(url='https://api.ipify.org/')
 
         if not r:
             return ""
 
         return r['response']
 
-    def send_query(self, proxy=False, url=None, user=None, password=None):
-        session = requests.Session()
-        retry = Retry(total=3, backoff_factor=0.3, status_forcelist=[500, 502, 503, 504])
-        adapter = HTTPAdapter(max_retries=retry)
-        session.mount('http://', adapter)
-        session.mount('https://', adapter)
+    async def detect_proxy_protocol(self, proxy):
+        for protocol in ['http://', 'https://', 'socks4://', 'socks5://']:
+            proxies = {protocol: proxy}
+            try:
+                async with httpx.AsyncClient(proxies=proxies, verify=False) as client:
+                    response = await client.get(
+                        random.choice(self.proxy_judges),
+                        timeout=Timeout(5.0)
+                    )
+                    response.raise_for_status()
+                return protocol
+            except (httpx.HTTPError, httpx.RequestError) as e:
+                continue
+        return None
 
-        proxies = None
+    async def send_query(self, proxy=False, url=None, user=None, password=None):
         if proxy:
-            proxies = {
-                'http': proxy,
-                'https': proxy
-            }
+            protocol = await self.detect_proxy_protocol(proxy)
+            if protocol is None:
+                return False
+            proxies = {protocol: proxy}
+        else:
+            proxies = None
 
         auth = None
         if user is not None and password is not None:
             auth = (user, password)
 
-        try:
-            response = session.get(
-                url or random.choice(self.proxy_judges),
-                proxies=proxies,
-                auth=auth,
-                timeout=5,
-                verify=False
-            )
-            response.raise_for_status()
-        except requests.exceptions.RequestException as e:
-            return False
+        async with httpx.AsyncClient(proxies=proxies, auth=auth, verify=False) as client:
+            try:
+                response = await client.get(
+                    url or random.choice(self.proxy_judges),
+                    timeout=Timeout(5.0)                    
+                )
+                response.raise_for_status()
+            except httpx.HTTPError as e:
+                return False
 
-        return {
-            'timeout': int(response.elapsed.total_seconds() * 1000),
-            'response': response.text
-        }
+            return {
+                'timeout': int(response.elapsed.total_seconds() * 1000),
+                'response': response.text
+            }
 
     def parse_anonymity(self, r):
         if self.ip in r:
@@ -80,8 +90,8 @@ class ProxyChecker:
 
         return 'Elite'
 
-    def get_country(self, ip):
-        r = self.send_query(url='https://ip2c.org/' + ip)
+    async def get_country(self, ip):
+        r = await self.send_query(url='https://ip2c.org/' + ip)
 
         if r and r['response'][0] == '1':
             r = r['response'].split(';')
@@ -89,13 +99,13 @@ class ProxyChecker:
 
         return ['-', '-']
 
-    def check_proxy(self, proxy, check_country=True, check_address=False, user=None, password=None):
+    async def check_proxy(self, proxy, check_country=True, check_address=False, user=None, password=None):
         protocols = {}
         timeout = 0
 
         proxy_url = 'http://' + proxy
 
-        r = self.send_query(proxy=proxy_url, user=user, password=password)
+        r = await self.send_query(proxy=proxy_url, user=user, password=password)
 
         if not r:
             return False
@@ -106,7 +116,7 @@ class ProxyChecker:
         r = protocols['http']['response']
 
         if check_country:
-            country = self.get_country(proxy.split(':')[0])
+            country = await self.get_country(proxy.split(':')[0])
 
         anonymity = self.parse_anonymity(r)
 

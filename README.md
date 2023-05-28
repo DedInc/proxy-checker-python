@@ -1,6 +1,6 @@
 # Proxy Checker (Python)
 
-[![Downloads](https://pepy.tech/badge/proxy-checker-requests)](https://pepy.tech/project/proxy-checker-requests)
+[![Downloads](https://pepy.tech/badge/proxy-checker-httpx)](https://pepy.tech/project/proxy-checker-httpx)
 
 A proxy checker in Python using Requests.
 
@@ -16,16 +16,22 @@ The proxy checker takes a proxy as input and uses it to send a request to a prox
 ## Installation
 
 ```console
-pip install proxy-checker-requests
+pip install proxy-checker-httpx
 ```
 
 ## Usage
 
 ```python3
-from proxy_checker_requests import ProxyChecker
+from proxy_checker_httpx import ProxyChecker
+import asyncio
 
-checker = ProxyChecker()
-checker.check_proxy('<ip>:<port>')
+async def main():
+  checker = ProxyChecker()
+  await checker.initialize()
+  await checker.check_proxy('<ip>:<port>')
+  return
+
+asyncio.run(main())
 ```
 
 ```json
@@ -51,7 +57,7 @@ checker.check_proxy('<ip>:<port>')
 ## Requirements
 
 - Python 3.\*
-- [Requests](https://pypi.org/project/requests/) - A requests python module \*
+- [Httpx](https://pypi.org/project/httpx/) - A httpx python module \*
 
 ## Contributing
 
